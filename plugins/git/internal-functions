@@ -294,15 +294,16 @@ fn-git-setup-build-dir-new() {
 fn-git-setup-build-dir-old() {
   declare APP="$1" GIT_WORKDIR="$2" REV="$3"
   local TMP_TAG="dokku/$REV"
+  pushd "$GIT_WORKDIR" >/dev/null
 
-  suppress_output git -C "$DOKKU_ROOT/$APP" tag -d "$TMP_TAG" &>/dev/null || true
-  suppress_output git -C "$DOKKU_ROOT/$APP" tag "$TMP_TAG" "$REV"
-  suppress_output git -C "$GIT_WORKDIR" init
-  suppress_output git -C "$GIT_WORKDIR" config advice.detachedHead false
-  suppress_output git -C "$GIT_WORKDIR" remote add origin "$DOKKU_ROOT/$APP"
-  suppress_output git -C "$GIT_WORKDIR" fetch --depth=1 origin "refs/tags/$TMP_TAG"
-  suppress_output git -C "$GIT_WORKDIR" reset --hard FETCH_HEAD
-  suppress_output git -C "$DOKKU_ROOT/$APP" git tag -d "$TMP_TAG" &>/dev/null || true
+  suppress_output GIT_DIR="$DOKKU_ROOT/$APP" git tag -d "$TMP_TAG" &>/dev/null || true
+  suppress_output GIT_DIR="$DOKKU_ROOT/$APP" git tag "$TMP_TAG" "$REV"
+  suppress_output git init
+  suppress_output git config advice.detachedHead false
+  suppress_output git remote add origin "$DOKKU_ROOT/$APP"
+  suppress_output git fetch --depth=1 origin "refs/tags/$TMP_TAG"
+  suppress_output git reset --hard FETCH_HEAD
+  suppress_output GIT_DIR="$DOKKU_ROOT/$APP" git tag -d "$TMP_TAG" &>/dev/null || true
   fn-git-setup-build-dir-submodules "$APP" "$GIT_WORKDIR"
 }
 
@@ -313,14 +314,15 @@ fn-git-setup-build-dir-worktree() {
   # See this issue for more information: https://github.com/dokku/dokku/issues/2796
   suppress_output env -u GIT_QUARANTINE_PATH git -C "$DOKKU_ROOT/$APP" worktree add "$GIT_WORKDIR" "$REV"
   fn-git-setup-build-dir-submodules "$APP" "$GIT_WORKDIR"
-  suppress_output git -C "$DOKKU_ROOT/$APP" worktree prune
+  suppress_output APP_DIR="$DOKKU_ROOT/$APP" git worktree prune
 }
 
 fn-git-setup-build-dir-submodules() {
   declare APP="$1" GIT_WORKDIR="$2"
   local DOKKU_KEEP_GIT_DIR="$(fn-plugin-property-get "git" "$APP" "keep-git-dir" "")"
-
-  suppress_output env -u GIT_QUARANTINE_PATH git -C "$GIT_WORKDIR" submodule update --init --recursive
+  
+  pushd "$GIT_WORKDIR" >/dev/null
+  suppress_output env -u GIT_QUARANTINE_PATH git submodule update --init --recursive
   if [[ "$DOKKU_KEEP_GIT_DIR" != "true" ]]; then
     find "$GIT_WORKDIR" -name .git -prune -exec rm -rf {} \; >/dev/null
   fi
